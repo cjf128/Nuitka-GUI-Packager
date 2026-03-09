@@ -1,23 +1,44 @@
-import sys
+import logging
 import os
 import subprocess
-import logging
+import sys
 from datetime import datetime
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QLineEdit, QTextEdit, QPushButton, QCheckBox, QFileDialog, QMessageBox,
-    QGroupBox, QFrame, QProgressBar, QSizePolicy, QTabWidget, QComboBox,
-    QSpinBox, QListWidget, QListWidgetItem, QAbstractItemView, QSplitter, QToolButton
-)
-from PySide6.QtCore import Qt, QThread, Signal, QSettings
-from PySide6.QtGui import QFont, QIcon, QTextCursor, QPalette, QColor
 
-# Set log format
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+from PySide6.QtCore import QSettings, Qt, QThread, Signal
+from PySide6.QtGui import QFont, QIcon, QTextCursor
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QFileDialog,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
 
 class PackageThread(QThread):
     """Thread for executing packaging commands"""
+
     log_signal = Signal(str)
     progress_signal = Signal(int)
     finished_signal = Signal(bool)
@@ -26,7 +47,7 @@ class PackageThread(QThread):
         super().__init__(parent)
         self.command = command
         self.running = True
-        self.process = None  # Reference to subprocess
+        self.process = None  # Add reference to subprocess
 
     def run(self):
         """Execute packaging command and capture output"""
@@ -38,13 +59,13 @@ class PackageThread(QThread):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                encoding='utf-8',
-                errors='replace',
-                bufsize=1
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
             )
 
             # Read output in real-time
-            for line in iter(self.process.stdout.readline, ''):
+            for line in iter(self.process.stdout.readline, ""):
                 if not self.running:
                     break
                 self.log_signal.emit(line.strip())
@@ -55,18 +76,20 @@ class PackageThread(QThread):
                 self.log_signal.emit("\n✅ Packaging completed successfully!")
                 self.finished_signal.emit(True)
             else:
-                self.log_signal.emit(f"\n❌ Packaging failed with error code: {return_code}")
+                self.log_signal.emit(
+                    f"\n❌ Packaging failed with error code: {return_code}"
+                )
                 self.finished_signal.emit(False)
         except Exception as e:
-            self.log_signal.emit(f"\n❌ Error during execution: {str(e)}")
+            self.log_signal.emit(f"\n❌ Error occurred during execution: {str(e)}")
             self.finished_signal.emit(False)
 
     def stop(self):
         """Stop packaging process"""
         self.running = False
-        self.log_signal.emit("\n🛑 User requested packaging stop...")
+        self.log_signal.emit("\n🛑 User requested to stop packaging...")
 
-        # Attempt to terminate subprocess
+        # Try to terminate subprocess
         if self.process:
             try:
                 self.process.terminate()
@@ -81,13 +104,17 @@ class NuitkaPackager(QMainWindow):
         self.setGeometry(300, 50, 1200, 850)
 
         # Set window icon
-        self.setWindowIcon(QIcon("../icons/382_128x128.ico"))  # Replace with your icon path
+        self.setWindowIcon(
+            QIcon("../icons/382_128x128.ico")
+        )  # Replace with your icon file path
 
         # Initialize QSettings for persistent settings
-        self.settings = QSettings("MyCompanyOrName", "NuitkaPackager")  # Adjust names as needed
+        self.settings = QSettings(
+            "MyCompanyOrName", "NuitkaPackager"
+        )  # Adjust name as needed
 
-        # Load theme setting, defaulting to Dark if not found
-        # The setting is loaded as a string ("true"/"false") and converted to boolean
+        # Load theme setting, default to dark theme
+        # Load setting as string ("true"/"false") and convert to boolean
         self.is_dark_theme = self.settings.value("dark_theme", True, type=bool)
 
         # Apply stylesheet directly on QMainWindow
@@ -98,7 +125,7 @@ class NuitkaPackager(QMainWindow):
         self.plugins_info_label = None
         self.flags_info_label = None
 
-        # Initial state
+        # Initialize state
         self.python_path = ""
         self.main_file = ""
         self.icon_file = ""
@@ -106,10 +133,10 @@ class NuitkaPackager(QMainWindow):
         self.package_thread = None
         self.plugins = []
 
-        # Apply styling
+        # Set style
         self.set_style()
 
-        # Update command display
+        # Update command
         self.update_command()
 
     def init_ui(self):
@@ -122,26 +149,26 @@ class NuitkaPackager(QMainWindow):
         main_layout.setSpacing(15)
         main_layout.setContentsMargins(20, 20, 20, 20)
 
-        # Title row with theme toggle
+        # Title row with theme toggle button
         title_layout = QHBoxLayout()
-        
+
         # Title
         title_label = QLabel("Nuitka Advanced Packager")
         title_label.setFont(QFont("Arial", 18, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("color: #2c3e50; margin-bottom: 15px;")
-        
+
         # Theme toggle button
         self.theme_toggle_btn = QPushButton("🌙 Dark Theme")
         self.theme_toggle_btn.setFixedHeight(30)
         self.theme_toggle_btn.setFixedWidth(120)
         self.theme_toggle_btn.clicked.connect(self.toggle_theme)
-        
+
         title_layout.addWidget(title_label)
         title_layout.addWidget(self.theme_toggle_btn)
         main_layout.addLayout(title_layout)
 
-        # Use tabs to organize the interface
+        # Use tab widget to organize entire interface
         main_tab = QTabWidget()
         main_layout.addWidget(main_tab)
 
@@ -160,14 +187,16 @@ class NuitkaPackager(QMainWindow):
         # Python interpreter selection
         self.python_label = QLabel("Python Interpreter:")
         self.python_input = QLineEdit()
-        self.python_input.setPlaceholderText("Select Python interpreter (e.g., venv/Scripts/python.exe)")
+        self.python_input.setPlaceholderText(
+            "Please select Python interpreter (located at venv/Scripts/python.exe)"
+        )
         self.python_btn = QPushButton("Browse...")
         self.python_btn.clicked.connect(self.select_python)
 
         # Main file selection
         self.file_label = QLabel("Main File:")
         self.file_input = QLineEdit()
-        self.file_input.setPlaceholderText("Select main Python file to package")
+        self.file_input.setPlaceholderText("Please select Python main file to package")
         self.file_btn = QPushButton("Browse...")
         self.file_btn.clicked.connect(self.select_main_file)
 
@@ -181,9 +210,39 @@ class NuitkaPackager(QMainWindow):
         # Output directory selection
         self.output_label = QLabel("Output Directory:")
         self.output_input = QLineEdit()
-        self.output_input.setPlaceholderText("Select output directory for packaged files")
+        self.output_input.setPlaceholderText(
+            "Select output directory for packaging results"
+        )
         self.output_btn = QPushButton("Browse...")
         self.output_btn.clicked.connect(self.select_output_dir)
+
+        # --- Additional Resources Configuration Area ---
+        data_group = QGroupBox("Additional Resources Configuration")
+        data_layout = QVBoxLayout(data_group)
+
+        # Use table to display: [Type, Source Path, Target Path, Operation]
+        self.data_table = QTableWidget(0, 3)
+        self.data_table.setHorizontalHeaderLabels(
+            ["Type", "Source Path", "Target Relative Path"]
+        )
+        self.data_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        data_layout.addWidget(self.data_table)
+
+        # Button action bar
+        btn_layout = QHBoxLayout()
+        self.add_dir_btn = QPushButton("Add Directory")
+        self.add_file_btn = QPushButton("Add File")
+        self.del_row_btn = QPushButton("Delete Selected")
+
+        btn_layout.addWidget(self.add_dir_btn)
+        btn_layout.addWidget(self.add_file_btn)
+        btn_layout.addStretch()  # Spring
+        btn_layout.addWidget(self.del_row_btn)
+        data_layout.addLayout(btn_layout)
+
+        self.add_dir_btn.clicked.connect(lambda: self.add_resource("dir"))
+        self.add_file_btn.clicked.connect(lambda: self.add_resource("file"))
+        self.del_row_btn.clicked.connect(self.remove_resource)
 
         # Add configuration items to layout
         config_layout.addWidget(self.python_label, 0, 0)
@@ -203,9 +262,10 @@ class NuitkaPackager(QMainWindow):
         config_layout.addWidget(self.output_btn, 3, 2)
 
         file_config_layout.addWidget(config_group)
+        file_config_layout.addWidget(data_group)
         file_config_layout.addStretch()
 
-        # Add file config tab to main tabs
+        # Add file configuration tab to main tab
         main_tab.addTab(file_config_tab, "File Configuration")
 
         # ===== Common Options Tab =====
@@ -220,27 +280,37 @@ class NuitkaPackager(QMainWindow):
         common_group_layout.setSpacing(10)
 
         # Common options
-        self.onefile_check = QCheckBox("--onefile (Single executable file)")
+        self.onefile_check = QCheckBox("--onefile (Package as single executable)")
         self.onefile_check.setChecked(False)
         self.onefile_check.stateChanged.connect(self.update_command)
 
-        self.standalone_check = QCheckBox("--standalone (Standalone mode with all dependencies)")
+        self.standalone_check = QCheckBox(
+            "--standalone (Standalone mode, includes all dependencies)"
+        )
         self.standalone_check.setChecked(True)
         self.standalone_check.stateChanged.connect(self.update_command)
 
-        self.disable_console_check = QCheckBox("--windows-disable-console (Hide console window)")
+        self.disable_console_check = QCheckBox(
+            "--windows-disable-console (Disable console window)"
+        )
         self.disable_console_check.setChecked(True)
         self.disable_console_check.stateChanged.connect(self.update_command)
 
-        self.remove_output_check = QCheckBox("--remove-output (Clean up after packaging)")
+        self.remove_output_check = QCheckBox(
+            "--remove-output (Delete output directory after packaging)"
+        )
         self.remove_output_check.setChecked(True)
         self.remove_output_check.stateChanged.connect(self.update_command)
 
-        self.include_qt_check = QCheckBox("--include-qt (Include Qt plugins for PySide6/PyQt6)")
+        self.include_qt_check = QCheckBox(
+            "--include-qt (Include Qt plugins, suitable for PySide6/PyQt6)"
+        )
         self.include_qt_check.setChecked(False)
         self.include_qt_check.stateChanged.connect(self.update_command)
 
-        self.show_progress_check = QCheckBox("--show-progress (Show packaging progress)")
+        self.show_progress_check = QCheckBox(
+            "--show-progress (Show packaging progress)"
+        )
         self.show_progress_check.setChecked(True)
         self.show_progress_check.stateChanged.connect(self.update_command)
 
@@ -262,25 +332,27 @@ class NuitkaPackager(QMainWindow):
         common_layout.addWidget(common_group)
         common_layout.addStretch()
 
-        # Add common options tab to main tabs
+        # Add common options tab to main tab
         main_tab.addTab(common_tab, "Common Options")
 
-        # ===== Plugin Options Tab =====
+        # ===== Plugins Tab =====
         plugins_tab = QWidget()
         plugins_layout = QVBoxLayout(plugins_tab)
         plugins_layout.setContentsMargins(10, 10, 10, 10)
         plugins_layout.setSpacing(15)
 
-        # Plugin options group
+        # Plugins group
         plugins_group = QGroupBox("Plugin Options")
         plugins_group_layout = QVBoxLayout(plugins_group)
 
-        # Plugin information
-        plugins_info = QLabel("Select Nuitka plugins to enable. Common plugins:\n"
-                              "- pyside6: Support for PySide6 framework\n"
-                              "- tk-inter: Support for Tkinter GUI library\n"
-                              "- numpy: Support for NumPy scientific library\n"
-                              "- multiprocessing: Support for multiprocessing module")
+        # Add plugin description
+        plugins_info = QLabel(
+            "Select Nuitka plugins to enable. Common plugins:\n"
+            "- pyside6: Supports PySide6 framework\n"
+            "- tk-inter: Supports Tkinter GUI library\n"
+            "- numpy: Supports NumPy scientific computing library\n"
+            "- multiprocessing: Supports multiprocessing module"
+        )
         plugins_info.setWordWrap(True)
         self.plugins_info_label = plugins_info
         plugins_group_layout.addWidget(plugins_info)
@@ -291,9 +363,18 @@ class NuitkaPackager(QMainWindow):
 
         # Add common plugins
         common_plugins = [
-            "pyside6", "tk-inter", "numpy", "multiprocessing",
-            "dill-compat", "gevent", "pylint-warnings", "qt-plugins",
-            "anti-bloat", "playwright", "spacy", "pandas"
+            "pyside6",
+            "tk-inter",
+            "numpy",
+            "multiprocessing",
+            "dill-compat",
+            "gevent",
+            "pylint-warnings",
+            "qt-plugins",
+            "anti-bloat",
+            "playwright",
+            "spacy",
+            "pandas",
         ]
         for plugin in common_plugins:
             item = QListWidgetItem(f"--enable-plugin={plugin}")
@@ -305,8 +386,8 @@ class NuitkaPackager(QMainWindow):
         plugins_layout.addWidget(plugins_group)
         plugins_layout.addStretch()
 
-        # Add plugin options tab to main tabs
-        main_tab.addTab(plugins_tab, "Plugin Options")
+        # Add plugins tab to main tab
+        main_tab.addTab(plugins_tab, "Plugins")
 
         # ===== Python Flags Tab =====
         flags_tab = QWidget()
@@ -319,30 +400,34 @@ class NuitkaPackager(QMainWindow):
         flags_group_layout = QVBoxLayout(flags_group)
         flags_group_layout.setSpacing(10)
 
-        # Flags information
-        flags_info = QLabel("Python flags set runtime options for the interpreter:\n"
-                            "- no_site: Disable site module import\n"
-                            "- no_warnings: Suppress warning messages\n"
-                            "- no_asserts: Disable assert statements\n"
-                            "- no_docstrings: Remove docstrings\n"
-                            "- unbuffered: Unbuffered output\n"
-                            "- static_hashes: Use static hash values")
+        # Add flags description
+        flags_info = QLabel(
+            "Python flags are used to set runtime options for the Python interpreter:\n"
+            "- no_site: Disable site module import\n"
+            "- no_warnings: Disable warning messages\n"
+            "- no_asserts: Disable assert statements\n"
+            "- no_docstrings: Disable docstrings\n"
+            "- unbuffered: Disable output buffering\n"
+            "- static_hashes: Use static hash values"
+        )
         flags_info.setWordWrap(True)
         self.flags_info_label = flags_info
         flags_group_layout.addWidget(flags_info)
 
-        # Flag selector and buttons
+        # Flag selection and add button
         flags_selector_layout = QHBoxLayout()
 
         self.flags_combo = QComboBox()
-        self.flags_combo.addItems([
-            "--python-flag=no_site",
-            "--python-flag=no_warnings",
-            "--python-flag=no_asserts",
-            "--python-flag=no_docstrings",
-            "--python-flag=unbuffered",
-            "--python-flag=static_hashes"
-        ])
+        self.flags_combo.addItems(
+            [
+                "--python-flag=no_site",
+                "--python-flag=no_warnings",
+                "--python-flag=no_asserts",
+                "--python-flag=no_docstrings",
+                "--python-flag=unbuffered",
+                "--python-flag=static_hashes",
+            ]
+        )
         self.flags_combo.setCurrentIndex(-1)
         self.flags_combo.setMinimumWidth(250)
 
@@ -371,7 +456,7 @@ class NuitkaPackager(QMainWindow):
         flags_layout.addWidget(flags_group)
         flags_layout.addStretch()
 
-        # Add Python flags tab to main tabs
+        # Add Python flags tab to main tab
         main_tab.addTab(flags_tab, "Python Flags")
 
         # ===== Advanced Options Tab =====
@@ -386,15 +471,21 @@ class NuitkaPackager(QMainWindow):
         advanced_group_layout.setSpacing(10)
 
         # Advanced options
-        self.follow_imports_check = QCheckBox("--follow-imports (Include all imported modules)")
+        self.follow_imports_check = QCheckBox(
+            "--follow-imports (Include all imported modules)"
+        )
         self.follow_imports_check.setChecked(True)
         self.follow_imports_check.stateChanged.connect(self.update_command)
 
-        self.follow_stdlib_check = QCheckBox("--follow-stdlib (Include standard library modules)")
+        self.follow_stdlib_check = QCheckBox(
+            "--follow-stdlib (Include standard library modules)"
+        )
         self.follow_stdlib_check.setChecked(False)
         self.follow_stdlib_check.stateChanged.connect(self.update_command)
 
-        self.module_mode_check = QCheckBox("--module (Create importable binary extension)")
+        self.module_mode_check = QCheckBox(
+            "--module (Create importable binary extension module)"
+        )
         self.module_mode_check.setChecked(False)
         self.module_mode_check.stateChanged.connect(self.update_command)
 
@@ -402,19 +493,25 @@ class NuitkaPackager(QMainWindow):
         self.lto_check.setChecked(False)
         self.lto_check.stateChanged.connect(self.update_command)
 
-        self.disable_ccache_check = QCheckBox("--disable-ccache (Disable ccache)")
+        self.disable_ccache_check = QCheckBox(
+            "--disable-ccache (Disable ccache caching)"
+        )
         self.disable_ccache_check.setChecked(False)
         self.disable_ccache_check.stateChanged.connect(self.update_command)
 
-        self.assume_yes_check = QCheckBox("--assume-yes (Answer yes to all prompts)")
+        self.assume_yes_check = QCheckBox("--assume-yes (Answer yes to all questions)")
         self.assume_yes_check.setChecked(False)
         self.assume_yes_check.stateChanged.connect(self.update_command)
 
-        self.windows_uac_admin_check = QCheckBox("--windows-uac-admin (Request admin privileges)")
+        self.windows_uac_admin_check = QCheckBox(
+            "--windows-uac-admin (Request administrator privileges)"
+        )
         self.windows_uac_admin_check.setChecked(False)
         self.windows_uac_admin_check.stateChanged.connect(self.update_command)
 
-        self.windows_uac_uiaccess_check = QCheckBox("--windows-uac-uiaccess (Allow elevated UI interaction)")
+        self.windows_uac_uiaccess_check = QCheckBox(
+            "--windows-uac-uiaccess (Allow elevated applications to interact with desktop)"
+        )
         self.windows_uac_uiaccess_check.setChecked(False)
         self.windows_uac_uiaccess_check.stateChanged.connect(self.update_command)
 
@@ -437,10 +534,10 @@ class NuitkaPackager(QMainWindow):
         include_layout = QGridLayout(include_group)
         include_layout.setSpacing(10)
 
-        # Include package
-        self.include_package_label = QLabel("Include Package:")
+        # Include packages
+        self.include_package_label = QLabel("Include Packages:")
         self.include_package_input = QLineEdit()
-        self.include_package_input.setPlaceholderText("Package name (e.g., mypackage)")
+        self.include_package_input.setPlaceholderText("Package names (e.g., mypackage)")
         self.include_package_input.setMinimumWidth(300)  # Prevent compression
         self.include_package_input.setMinimumHeight(20)  # Set minimum height
         self.include_package_input.textChanged.connect(self.update_command)
@@ -448,39 +545,25 @@ class NuitkaPackager(QMainWindow):
         # Include package data
         self.include_package_data_label = QLabel("Include Package Data:")
         self.include_package_data_input = QLineEdit()
-        self.include_package_data_input.setPlaceholderText("Package:pattern (e.g., mypackage:*.txt)")
+        self.include_package_data_input.setPlaceholderText(
+            "Package:file pattern (e.g., mypackage:*.txt)"
+        )
         self.include_package_data_input.setMinimumWidth(300)  # Prevent compression
         self.include_package_data_input.setMinimumHeight(20)  # Set minimum height
         self.include_package_data_input.textChanged.connect(self.update_command)
 
-        # Include module
-        self.include_module_label = QLabel("Include Module:")
+        # Include modules
+        self.include_module_label = QLabel("Include Modules:")
         self.include_module_input = QLineEdit()
-        self.include_module_input.setPlaceholderText("Module name (e.g., mymodule)")
+        self.include_module_input.setPlaceholderText("Module names (e.g., mymodule)")
         self.include_module_input.setMinimumWidth(300)  # Prevent compression
         self.include_module_input.setMinimumHeight(20)  # Set minimum height
         self.include_module_input.textChanged.connect(self.update_command)
 
-        # Include data files
-        self.include_data_label = QLabel("Include Data Files:")
-        self.include_data_input = QLineEdit()
-        self.include_data_input.setPlaceholderText("Source=Destination (e.g., data/*.json=./data/)")
-        self.include_data_input.setMinimumWidth(300)  # Prevent compression
-        self.include_data_input.setMinimumHeight(20)  # Set minimum height
-        self.include_data_input.textChanged.connect(self.update_command)
-
-        # Include data directory
-        self.include_data_dir_label = QLabel("Include Data Directory:")
-        self.include_data_dir_input = QLineEdit()
-        self.include_data_dir_input.setPlaceholderText("Source=Destination (e.g., ./assets=assets/)")
-        self.include_data_dir_input.setMinimumWidth(300)  # Prevent compression
-        self.include_data_dir_input.setMinimumHeight(20)  # Set minimum height
-        self.include_data_dir_input.textChanged.connect(self.update_command)
-
         # Exclude data files
         self.noinclude_data_label = QLabel("Exclude Data Files:")
         self.noinclude_data_input = QLineEdit()
-        self.noinclude_data_input.setPlaceholderText("Pattern (e.g., *.tmp)")
+        self.noinclude_data_input.setPlaceholderText("File patterns (e.g., *.tmp)")
         self.noinclude_data_input.setMinimumWidth(300)  # Prevent compression
         self.noinclude_data_input.setMinimumHeight(20)  # Set minimum height
         self.noinclude_data_input.textChanged.connect(self.update_command)
@@ -488,15 +571,19 @@ class NuitkaPackager(QMainWindow):
         # Onefile external data
         self.include_onefile_ext_label = QLabel("Onefile External Data:")
         self.include_onefile_ext_input = QLineEdit()
-        self.include_onefile_ext_input.setPlaceholderText("Pattern (e.g., large_files/*)")
+        self.include_onefile_ext_input.setPlaceholderText(
+            "File patterns (e.g., large_files/*)"
+        )
         self.include_onefile_ext_input.setMinimumWidth(300)  # Prevent compression
         self.include_onefile_ext_input.setMinimumHeight(20)  # Set minimum height
         self.include_onefile_ext_input.textChanged.connect(self.update_command)
 
-        # Include raw directory
-        self.include_raw_dir_label = QLabel("Include Raw Directory:")
+        # Include raw directories
+        self.include_raw_dir_label = QLabel("Include Raw Directories:")
         self.include_raw_dir_input = QLineEdit()
-        self.include_raw_dir_input.setPlaceholderText("Directory path (e.g., ./raw_data)")
+        self.include_raw_dir_input.setPlaceholderText(
+            "Directory paths (e.g., ./raw_data)"
+        )
         self.include_raw_dir_input.setMinimumWidth(300)  # Prevent compression
         self.include_raw_dir_input.setMinimumHeight(20)  # Set minimum height
         self.include_raw_dir_input.textChanged.connect(self.update_command)
@@ -511,92 +598,20 @@ class NuitkaPackager(QMainWindow):
         include_layout.addWidget(self.include_module_label, 2, 0)
         include_layout.addWidget(self.include_module_input, 2, 1)
 
-        include_layout.addWidget(self.include_data_label, 3, 0)
-        include_layout.addWidget(self.include_data_input, 3, 1)
+        include_layout.addWidget(self.noinclude_data_label, 3, 0)
+        include_layout.addWidget(self.noinclude_data_input, 3, 1)
 
-        include_layout.addWidget(self.include_data_dir_label, 4, 0)
-        include_layout.addWidget(self.include_data_dir_input, 4, 1)
+        include_layout.addWidget(self.include_onefile_ext_label, 4, 0)
+        include_layout.addWidget(self.include_onefile_ext_input, 4, 1)
 
-        include_layout.addWidget(self.noinclude_data_label, 5, 0)
-        include_layout.addWidget(self.noinclude_data_input, 5, 1)
-
-        include_layout.addWidget(self.include_onefile_ext_label, 6, 0)
-        include_layout.addWidget(self.include_onefile_ext_input, 6, 1)
-
-        include_layout.addWidget(self.include_raw_dir_label, 7, 0)
-        include_layout.addWidget(self.include_raw_dir_input, 7, 1)
+        include_layout.addWidget(self.include_raw_dir_label, 5, 0)
+        include_layout.addWidget(self.include_raw_dir_input, 5, 1)
 
         advanced_layout.addWidget(include_group)
         advanced_layout.addStretch()
 
-        # Add advanced options tab to main tabs
+        # Add advanced options tab to main tab
         main_tab.addTab(advanced_tab, "Advanced Options")
-
-        # ===== Onefile Options Tab =====
-        onefile_tab = QWidget()
-        onefile_layout = QVBoxLayout(onefile_tab)
-        onefile_layout.setContentsMargins(10, 10, 10, 10)
-        onefile_layout.setSpacing(15)
-
-        # Onefile options group
-        onefile_group = QGroupBox("Onefile Mode Options")
-        onefile_group_layout = QGridLayout(onefile_group)
-        onefile_group_layout.setSpacing(10)
-
-        # Onefile options
-        self.onefile_tempdir_label = QLabel("Temp Directory:")
-        self.onefile_tempdir_input = QLineEdit()
-        self.onefile_tempdir_input.setPlaceholderText("{TEMP}/onefile_{PID}_{TIME} (default)")
-        self.onefile_tempdir_input.textChanged.connect(self.update_command)
-
-        self.onefile_grace_time_label = QLabel("Child Termination Time (ms):")
-        self.onefile_grace_time_spin = QSpinBox()
-        self.onefile_grace_time_spin.setRange(1000, 30000)
-        self.onefile_grace_time_spin.setValue(5000)
-        self.onefile_grace_time_spin.setSingleStep(1000)  # Step by 1000ms
-        self.onefile_grace_time_spin.setSuffix(" ms")  # Add suffix for clarity
-        self.onefile_grace_time_spin.setMinimumWidth(120)  # Ensure minimum width
-        self.onefile_grace_time_spin.valueChanged.connect(self.update_command)
-
-        self.onefile_no_compression_check = QCheckBox("--onefile-no-compression (Disable compression)")
-        self.onefile_no_compression_check.setChecked(False)
-        self.onefile_no_compression_check.stateChanged.connect(self.update_command)
-
-        self.onefile_as_archive_check = QCheckBox("--onefile-as-archive (Create extractable archive)")
-        self.onefile_as_archive_check.setChecked(False)
-        self.onefile_as_archive_check.stateChanged.connect(self.update_command)
-
-        # Add onefile options to layout
-        onefile_group_layout.addWidget(self.onefile_tempdir_label, 0, 0)
-        onefile_group_layout.addWidget(self.onefile_tempdir_input, 0, 1)
-
-        onefile_group_layout.addWidget(self.onefile_grace_time_label, 1, 0)
-        onefile_group_layout.addWidget(self.onefile_grace_time_spin, 1, 1)
-
-        onefile_group_layout.addWidget(self.onefile_no_compression_check, 2, 0)
-        onefile_group_layout.addWidget(self.onefile_as_archive_check, 2, 1)
-
-        onefile_layout.addWidget(onefile_group)
-
-        # DLL control group
-        dll_group = QGroupBox("DLL Control")
-        dll_layout = QGridLayout(dll_group)
-
-        # DLL options
-        self.noinclude_dlls_label = QLabel("Exclude DLLs:")
-        self.noinclude_dlls_input = QLineEdit()
-        self.noinclude_dlls_input.setPlaceholderText("Pattern (e.g., someDLL.*)")
-        self.noinclude_dlls_input.textChanged.connect(self.update_command)
-
-        # Add DLL options to layout
-        dll_layout.addWidget(self.noinclude_dlls_label, 0, 0)
-        dll_layout.addWidget(self.noinclude_dlls_input, 0, 1)
-
-        onefile_layout.addWidget(dll_group)
-        onefile_layout.addStretch()
-
-        # Add onefile options tab to main tabs
-        main_tab.addTab(onefile_tab, "Onefile Options")
 
         # ===== Metadata Tab =====
         metadata_tab = QWidget()
@@ -604,7 +619,7 @@ class NuitkaPackager(QMainWindow):
         metadata_layout.setContentsMargins(10, 10, 10, 10)
         metadata_layout.setSpacing(15)
 
-        # Metadata group
+        # Metadata options group
         metadata_group = QGroupBox("Metadata Information")
         metadata_group_layout = QGridLayout(metadata_group)
         metadata_group_layout.setSpacing(10)
@@ -665,20 +680,20 @@ class NuitkaPackager(QMainWindow):
         env_group = QGroupBox("Environment Control")
         env_layout = QGridLayout(env_group)
 
-        # Environment options
-        self.force_env_label = QLabel("Force Environment Variable:")
+        # Environment control options
+        self.force_env_label = QLabel("Force Environment Variables:")
         self.force_env_input = QLineEdit()
-        self.force_env_input.setPlaceholderText("VAR=value (e.g., MY_VAR=123)")
+        self.force_env_input.setPlaceholderText("Variable=value (e.g., MY_VAR=123)")
         self.force_env_input.textChanged.connect(self.update_command)
 
-        # Add environment options to layout
+        # Add environment control options to layout
         env_layout.addWidget(self.force_env_label, 0, 0)
         env_layout.addWidget(self.force_env_input, 0, 1)
 
         metadata_layout.addWidget(env_group)
         metadata_layout.addStretch()
 
-        # Add metadata tab to main tabs
+        # Add metadata tab to main tab
         main_tab.addTab(metadata_tab, "Metadata")
 
         # ===== Debug Options Tab =====
@@ -705,11 +720,15 @@ class NuitkaPackager(QMainWindow):
         self.trace_execution_check.setChecked(False)
         self.trace_execution_check.stateChanged.connect(self.update_command)
 
-        self.warn_implicit_check = QCheckBox("--warn-implicit-exceptions (Warn on implicit exceptions)")
+        self.warn_implicit_check = QCheckBox(
+            "--warn-implicit-exceptions (Warn about implicit exceptions)"
+        )
         self.warn_implicit_check.setChecked(False)
         self.warn_implicit_check.stateChanged.connect(self.update_command)
 
-        self.warn_unusual_check = QCheckBox("--warn-unusual-code (Warn on unusual code)")
+        self.warn_unusual_check = QCheckBox(
+            "--warn-unusual-code (Warn about unusual code)"
+        )
         self.warn_unusual_check.setChecked(False)
         self.warn_unusual_check.stateChanged.connect(self.update_command)
 
@@ -728,18 +747,18 @@ class NuitkaPackager(QMainWindow):
         deployment_group = QGroupBox("Deployment Control")
         deployment_layout = QGridLayout(deployment_group)
 
-        # Deployment options
+        # Deployment control options
         self.deployment_check = QCheckBox("--deployment (Enable deployment mode)")
         self.deployment_check.setChecked(False)
         self.deployment_check.stateChanged.connect(self.update_command)
 
-        # Add deployment options to layout
+        # Add deployment control options to layout
         deployment_layout.addWidget(self.deployment_check, 0, 0)
 
         debug_layout.addWidget(deployment_group)
         debug_layout.addStretch()
 
-        # Add debug options tab to main tabs
+        # Add debug options tab to main tab
         main_tab.addTab(debug_tab, "Debug Options")
 
         # ===== Operation Log Tab =====
@@ -752,7 +771,7 @@ class NuitkaPackager(QMainWindow):
         log_group = QGroupBox("Operation Log")
         log_group_layout = QVBoxLayout(log_group)
         log_group_layout.setContentsMargins(15, 15, 15, 15)
-        log_group.setMinimumHeight(450)  # Fixed minimum height
+        log_group.setMinimumHeight(450)  # Key setting: fixed minimum height
 
         self.log_edit = QTextEdit()
         self.log_edit.setReadOnly(True)
@@ -763,18 +782,34 @@ class NuitkaPackager(QMainWindow):
         log_layout.addWidget(log_group)
         log_layout.addStretch()
 
-        # Add log tab to main tabs
+        # Add operation log tab to main tab
         main_tab.addTab(log_tab, "Operation Log")
 
         # Command area
         command_group = QGroupBox("Packaging Command")
         command_layout = QVBoxLayout(command_group)
         command_layout.setContentsMargins(15, 15, 15, 15)
-        command_group.setMinimumHeight(150)  # Fixed minimum height
+        command_group.setMinimumHeight(150)  # Key setting: fixed minimum height
 
         self.command_edit = QTextEdit()
-        self.command_edit.setPlaceholderText("Generated packaging command will appear here...")
-        self.command_edit.setFont(QFont("Consolas", 10))
+        self.command_edit.setPlaceholderText(
+            "Generated packaging command will appear here..."
+        )
+        # Use cross-platform monospace font scheme
+        command_font = QFont()
+        command_font.setPointSize(10)
+        # Try to set monospace font, fallback to system default monospace if failed
+        for font_family in [
+            "Consolas",
+            "Monaco",
+            "Courier New",
+            "Courier",
+            "monospace",
+        ]:
+            if QFont(font_family).exactMatch():
+                command_font.setFamily(font_family)
+                break
+        self.command_edit.setFont(command_font)
         self.command_edit.setMinimumHeight(80)
         command_layout.addWidget(self.command_edit)
 
@@ -786,8 +821,6 @@ class NuitkaPackager(QMainWindow):
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(10)
         main_layout.addWidget(self.progress_bar)
-
-
 
         # Button area
         button_layout = QHBoxLayout()
@@ -841,7 +874,7 @@ class NuitkaPackager(QMainWindow):
 
         # Status bar
         self.status_bar = self.statusBar()
-        self.status_bar.showMessage("Ready - Configure packaging options")
+        self.status_bar.showMessage("Ready - Please configure packaging options")
 
     def toggle_theme(self):
         """Toggle between dark and light themes"""
@@ -851,13 +884,13 @@ class NuitkaPackager(QMainWindow):
             self.theme_toggle_btn.setText("🌙 Dark Theme")
         else:
             self.theme_toggle_btn.setText("☀️ Light Theme")
-        # Apply the new theme
+        # Apply new theme
         self.set_style()
-        # Save the current theme setting persistently
+        # Persistently save current theme setting
         self.settings.setValue("dark_theme", self.is_dark_theme)
-        # Log the theme change
+        # Record theme change
         theme_name = "Dark" if self.is_dark_theme else "Light"
-        self.log_message(f"🎨 Switched to {theme_name} theme and saved preference")
+        self.log_message(f"🎨 Switched to {theme_name} theme and saved preferences")
 
     def add_python_flag(self):
         """Add Python flag to list"""
@@ -877,7 +910,7 @@ class NuitkaPackager(QMainWindow):
         self.update_command()
 
     def toggle_remove_button(self):
-        """Enable/disable remove button based on selection"""
+        """Enable/disable remove button based on selection state"""
         self.remove_flag_btn.setEnabled(bool(self.flags_list.selectedItems()))
 
     def flag_exists(self, flag):
@@ -888,32 +921,40 @@ class NuitkaPackager(QMainWindow):
         return False
 
     def set_style(self):
-        """Set application styling based on theme"""
-        # Store references to info labels if not already done
-        # These lines ensure the references exist. They are idempotent.
-        if not hasattr(self, 'plugins_info_label') or self.plugins_info_label is None:
-            # Find the plugins info label. It's inside the Plugins tab's group box.
-            # Assuming tab order: File Config(0), Common Options(1), Plugins(2), Python Flags(3)...
+        """Set application style based on theme"""
+        # Store references to info labels (if not already done)
+        # These lines ensure references exist. They are idempotent.
+        if not hasattr(self, "plugins_info_label") or self.plugins_info_label is None:
+            # Find plugins info label. It's inside the group box of the plugins tab.
+            # Assume tab order: File Configuration(0), Common Options(1), Plugins(2), Python Flags(3)...
             try:
-                plugins_tab = self.centralWidget().findChild(QWidget, "qt_tabwidget_stackedwidget").widget(2)
+                plugins_tab = (
+                    self.centralWidget()
+                    .findChild(QWidget, "qt_tabwidget_stackedwidget")
+                    .widget(2)
+                )
                 if plugins_tab:
-                    # Find the first QLabel which should be the info label
+                    # Find first QLabel, should be info label
                     self.plugins_info_label = plugins_tab.findChild(QLabel)
             except Exception:
                 self.plugins_info_label = None  # Fallback if not found
 
-        if not hasattr(self, 'flags_info_label') or self.flags_info_label is None:
-            # Find the flags info label. It's inside the Python Flags tab's group box.
+        if not hasattr(self, "flags_info_label") or self.flags_info_label is None:
+            # Find flags info label. It's inside the group box of the Python flags tab.
             try:
-                flags_tab = self.centralWidget().findChild(QWidget, "qt_tabwidget_stackedwidget").widget(3)
+                flags_tab = (
+                    self.centralWidget()
+                    .findChild(QWidget, "qt_tabwidget_stackedwidget")
+                    .widget(3)
+                )
                 if flags_tab:
-                    # Find the first QLabel which should be the info label
+                    # Find first QLabel, should be info label
                     self.flags_info_label = flags_tab.findChild(QLabel)
             except Exception:
                 self.flags_info_label = None  # Fallback if not found
 
         if self.is_dark_theme:
-            # Dark Theme
+            # Dark theme
             # Define main window background (including potential QStatusBar base)
             main_bg = """
             QMainWindow {
@@ -927,18 +968,18 @@ class NuitkaPackager(QMainWindow):
             }
             """
             # Define QStatusBar style for dark theme
-            # This will be applied directly to the QMainWindow
+            # This will be applied directly to QMainWindow
             statusbar_style = """
             QStatusBar {
                 background-color: #333; /* Dark background, matching QGroupBox */
                 color: #ffffff;        /* White text */
-                border-top: 1px solid #555; /* Optional: top separator line */
+                border-top: 1px solid #555; /* Optional: top separator */
             }
             QStatusBar QLabel { /* Ensure labels inside status bar are white */
                 color: #ffffff;
             }
             """
-            # Define widget styles (WITHOUT QStatusBar rules)
+            # Define widget style (without QStatusBar rules)
             widget_style = """
             QGroupBox {
                 font-weight: bold;
@@ -1029,6 +1070,40 @@ class NuitkaPackager(QMainWindow):
             QCheckBox {
                 color: #ffffff;
             }
+            /* Table overall style */
+            QTableWidget {
+                background-color: #1e1e1e;
+                border: 1px solid #555;
+                gridline-color: #444;
+                color: #ffffff;
+                border-radius: 4px;
+                selection-background-color: #3498db;
+                selection-color: white;
+            }
+            /* Table header style */
+            QHeaderView::section {
+                background-color: #2c2c2e;
+                color: #ffffff;
+                padding: 5px;
+                border: 1px solid #555;
+                font-weight: bold;
+            }
+            /* Table top-left empty area */
+            QTableCornerButton::section {
+                background-color: #2c2c2e;
+                border: 1px solid #555;
+            }
+            /* Scroll bar beautification (optional, for consistency) */
+            QScrollBar:vertical {
+                border: none;
+                background: #2c2c2e;
+                width: 10px;
+            }
+            QScrollBar::handle:vertical {
+                background: #555;
+                min-height: 20px;
+                border-radius: 5px;
+            }
             QSpinBox {
                 background-color: #1e1e1e;
                 border: 1px solid #555;
@@ -1074,17 +1149,17 @@ class NuitkaPackager(QMainWindow):
                 transform: rotate(45deg);
                 margin: 3px;
             }
-            """  # <--- End of widget_style string (QStatusBar rules REMOVED)
+            """  # <--- widget_style string end (QStatusBar rules removed)
 
-            # Apply specific styles for info labels in Dark Theme
-            if hasattr(self, 'plugins_info_label') and self.plugins_info_label:
+            # Apply specific style to info labels in dark theme
+            if hasattr(self, "plugins_info_label") and self.plugins_info_label:
                 self.plugins_info_label.setStyleSheet("""
                     background-color: #2c2c2e;
                     color: #ffffff;
                     padding: 8px;
                     border-radius: 4px;
                 """)
-            if hasattr(self, 'flags_info_label') and self.flags_info_label:
+            if hasattr(self, "flags_info_label") and self.flags_info_label:
                 self.flags_info_label.setStyleSheet("""
                     background-color: #2c2c2e;
                     color: #ffffff;
@@ -1093,25 +1168,25 @@ class NuitkaPackager(QMainWindow):
                 """)
 
             # Apply styles
-            # Apply main background AND status bar style to QMainWindow
+            # Apply main background and status bar style to QMainWindow
             self.setStyleSheet(main_bg + statusbar_style)
-            # Apply dark widget styles to central widget
+            # Apply dark widget style to central widget
             self.centralWidget().setStyleSheet(widget_style)
 
         else:
-            # Light Theme
+            # Light theme
             # Simple background for QMainWindow
             main_light_bg = "QMainWindow { background-color: #f5f7fa; }"
             # Define QStatusBar style for light theme
-            # This will be applied directly to the QMainWindow
+            # This will be applied directly to QMainWindow
             statusbar_style = """
             QStatusBar {
                 background-color: #f5f7fa; /* Light background, matching main window */
                 color: #2c3e50;           /* Dark text */
-                border-top: 1px solid #dcdde1; /* Optional: top separator line */
+                border-top: 1px solid #dcdde1; /* Optional: top separator */
             }
             """
-            # Define light widget styles (WITHOUT QStatusBar rules)
+            # Define light widget style (without QStatusBar rules)
             light_widget_style = """
             QGroupBox {
                 font-weight: bold;
@@ -1202,6 +1277,29 @@ class NuitkaPackager(QMainWindow):
             QCheckBox {
                 color: #2c3e50;
             }
+            /* Table overall style */
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #dcdde1;
+                gridline-color: #f0f0f0;
+                color: #2c3e50;
+                border-radius: 4px;
+                selection-background-color: #3498db;
+                selection-color: white;
+            }
+            /* Table header style */
+            QHeaderView::section {
+                background-color: #ecf0f1;
+                color: #2c3e50;
+                padding: 5px;
+                border: 1px solid #dcdde1;
+                font-weight: bold;
+            }
+            /* Table top-left empty area */
+            QTableCornerButton::section {
+                background-color: #ecf0f1;
+                border: 1px solid #dcdde1;
+            }
             QSpinBox {
                 background-color: white;
                 border: 1px solid #dcdde1;
@@ -1247,20 +1345,20 @@ class NuitkaPackager(QMainWindow):
                 transform: rotate(45deg);
                 margin: 3px;
             }
-            """  # <--- End of light_widget_style string (QStatusBar rules REMOVED)
+            """  # <--- light_widget_style string end (QStatusBar rules removed)
 
-            # Apply specific styles for info labels in Light Theme
-            # Reset to a default or light-specific style if needed
-            if hasattr(self, 'plugins_info_label') and self.plugins_info_label:
-                # Re-apply original light style or a suitable one
+            # Apply specific style to info labels in light theme
+            # If needed, reset to default or light-specific style
+            if hasattr(self, "plugins_info_label") and self.plugins_info_label:
+                # Reapply original light style or suitable style
                 self.plugins_info_label.setStyleSheet("""
                     background-color: #f8f9fa;
                     color: #2c3e50;
                     padding: 8px;
                     border-radius: 4px;
                 """)
-            if hasattr(self, 'flags_info_label') and self.flags_info_label:
-                # Re-apply original light style or a suitable one
+            if hasattr(self, "flags_info_label") and self.flags_info_label:
+                # Reapply original light style or suitable style
                 self.flags_info_label.setStyleSheet("""
                     background-color: #f8f9fa;
                     color: #2c3e50;
@@ -1269,9 +1367,9 @@ class NuitkaPackager(QMainWindow):
                 """)
 
             # Apply styles
-            # Apply light background AND status bar style to QMainWindow
+            # Apply light background and status bar style to QMainWindow
             self.setStyleSheet(main_light_bg + statusbar_style)
-            # Apply light widget styles to central widget
+            # Apply light widget style to central widget
             self.centralWidget().setStyleSheet(light_widget_style)
 
     def get_messagebox_style(self):
@@ -1299,12 +1397,12 @@ class NuitkaPackager(QMainWindow):
             QMessageBox QPushButton:pressed {
                 background-color: #1c5980; /* Even darker blue when pressed */
             }
-            /* Style the icons if needed, though usually not necessary */
+            /* If needed, set icon styles, but usually not necessary */
             """
         else:
-            # If needed, define a specific light theme style, or return empty string
-            # to use the default OS/application light theme.
-            # Often, the default light theme is fine, but you can customize it.
+            # If needed, define specific light theme style, or return empty string
+            # Use default operating system/application light theme.
+            # Usually, the default light theme is fine, but you can customize it.
             return """
             QMessageBox {
                 background-color: #f5f7fa; /* Light background */
@@ -1340,7 +1438,10 @@ class NuitkaPackager(QMainWindow):
     def select_python(self):
         """Select Python interpreter"""
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select Python Interpreter", "", "Python Interpreter (python.exe python.cmd);;All Files (*)"
+            self,
+            "Select Python Interpreter",
+            "",
+            "Python Interpreter (python.exe python.cmd);;All Files (*)",
         )
         if file_path:
             self.python_path = file_path
@@ -1351,11 +1452,13 @@ class NuitkaPackager(QMainWindow):
                 QMessageBox.warning(
                     self,
                     "Nuitka Not Installed",
-                    "Nuitka not detected in selected Python environment.\nInstall with: pip install nuitka",
-                    QMessageBox.Ok
+                    "Nuitka not detected in the selected Python environment.\nPlease install it using: pip install nuitka",
+                    QMessageBox.Ok,
                 )
             else:
-                self.log_message("✓ Nuitka installed in selected Python environment")
+                self.log_message(
+                    "✓ Nuitka is installed in the selected Python environment"
+                )
 
     def check_nuitka_installed(self):
         """Check if Nuitka is installed in selected Python environment"""
@@ -1365,6 +1468,7 @@ class NuitkaPackager(QMainWindow):
                 return True
 
             # Method 2: Most reliable - try running nuitka --version
+            # Pass current environment to ensure virtual environment is used correctly
             try:
                 result = subprocess.run(
                     [self.python_path, "-m", "nuitka", "--version"],
@@ -1372,7 +1476,8 @@ class NuitkaPackager(QMainWindow):
                     stderr=subprocess.PIPE,
                     text=True,
                     timeout=2,
-                    creationflags=subprocess.CREATE_NO_WINDOW
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                    env=os.environ.copy(),
                 )
                 if result.returncode == 0:
                     return True
@@ -1387,7 +1492,7 @@ class NuitkaPackager(QMainWindow):
             scripts_dir = "Scripts" if sys.platform.startswith("win") else "bin"
             scripts_path = os.path.join(env_base, scripts_dir)
 
-            # Check for possible executables
+            # Check possible executable files
             for exe_name in ["nuitka", "nuitka.exe", "nuitka.cmd", "nuitka-script.py"]:
                 exe_path = os.path.join(scripts_path, exe_name)
                 if os.path.exists(exe_path):
@@ -1403,9 +1508,9 @@ class NuitkaPackager(QMainWindow):
                         stderr=subprocess.PIPE,
                         text=True,
                         timeout=2,
-                        creationflags=subprocess.CREATE_NO_WINDOW
+                        creationflags=subprocess.CREATE_NO_WINDOW,
                     )
-                    # Check if successful and contains package info
+                    # Check if successful and contains package information
                     if result.returncode == 0 and "Name: nuitka" in result.stdout:
                         return True
                 except:
@@ -1442,20 +1547,47 @@ class NuitkaPackager(QMainWindow):
             self.output_dir = dir_path
             self.output_input.setText(dir_path)
 
+    def add_resource(self, mode):
+        """Select resource and add to table"""
+        if mode == "dir":
+            path = QFileDialog.getExistingDirectory(self, "Select Data Directory")
+            type_text = "Directory"
+        else:
+            path, _ = QFileDialog.getOpenFileName(self, "Select Data File")
+            type_text = "File"
+
+        if path:
+            import os
+
+            row = self.data_table.rowCount()
+            self.data_table.insertRow(row)
+
+            # Set type and path
+            self.data_table.setItem(row, 0, QTableWidgetItem(type_text))
+            self.data_table.setItem(row, 1, QTableWidgetItem(path))
+
+            # Set default target path: use original directory name if directory, or original filename if file
+            default_dest = os.path.basename(path)
+            self.data_table.setItem(row, 2, QTableWidgetItem(default_dest))
+
+    def remove_resource(self):
+        """Delete selected row"""
+        curr = self.data_table.currentRow()
+        if curr >= 0:
+            self.data_table.removeRow(curr)
+
     def update_command(self):
         """Update packaging command based on user selections"""
         if not self.python_path or not self.main_file:
             self.command_edit.setPlainText(
-                "1. Select Python interpreter and main file \n2. Configure options to update command")
+                "1.Please select Python interpreter and main file first\n2.Select common options to update packaging command"
+            )
             return
 
-        # Build base command
-        command = [
-            self.python_path,
-            "-m", "nuitka"
-        ]
+        # Build basic command
+        command = [self.python_path, "-m", "nuitka"]
 
-        # For uv environments, use nuitka.cmd directly
+        # If uv environment, use nuitka.cmd directly
         if self.python_path.endswith("nuitka.cmd"):
             command = [self.python_path]
 
@@ -1489,8 +1621,26 @@ class NuitkaPackager(QMainWindow):
         if self.output_dir:
             command.append(f"--output-dir={self.output_dir}")
 
+        # Process additional resources in table
+        for row in range(self.data_table.rowCount()):
+            res_type = self.data_table.item(row, 0).text()
+            src_path = self.data_table.item(row, 1).text()
+            dst_path = self.data_table.item(row, 2).text()
+
+            # Select argument name based on type
+            arg_name = (
+                "--include-data-dir"
+                if res_type == "Directory"
+                else "--include-data-files"
+            )
+
+            if src_path and dst_path:
+                command.append(f"{arg_name}={src_path}={dst_path}")
+
         # ===== Plugin Options =====
-        selected_plugins = [item.text().split('=')[1] for item in self.plugins_list.selectedItems()]
+        selected_plugins = [
+            item.text().split("=")[1] for item in self.plugins_list.selectedItems()
+        ]
         for plugin in selected_plugins:
             command.append(f"--enable-plugin={plugin}")
 
@@ -1505,7 +1655,7 @@ class NuitkaPackager(QMainWindow):
             command.append("--module")
 
         if self.lto_check.isChecked():
-            command.append("--lto")
+            command.append("--lto=yes")
 
         if self.disable_ccache_check.isChecked():
             command.append("--disable-ccache")
@@ -1522,107 +1672,67 @@ class NuitkaPackager(QMainWindow):
         # ===== Include Options =====
         # Include packages
         if self.include_package_input.text():
-            packages = [pkg.strip() for pkg in self.include_package_input.text().split(',') if pkg.strip()]
+            packages = [
+                pkg.strip()
+                for pkg in self.include_package_input.text().split(",")
+                if pkg.strip()
+            ]
             for pkg in packages:
                 command.append(f"--include-package={pkg}")
 
         # Include package data
         if self.include_package_data_input.text():
-            package_data = [pd.strip() for pd in self.include_package_data_input.text().split(',') if pd.strip()]
+            package_data = [
+                pd.strip()
+                for pd in self.include_package_data_input.text().split(",")
+                if pd.strip()
+            ]
             for pd in package_data:
                 command.append(f"--include-package-data={pd}")
 
         # Include modules
         if self.include_module_input.text():
-            modules = [mod.strip() for mod in self.include_module_input.text().split(',') if mod.strip()]
+            modules = [
+                mod.strip()
+                for mod in self.include_module_input.text().split(",")
+                if mod.strip()
+            ]
             for mod in modules:
                 command.append(f"--include-module={mod}")
 
-        # Include data directories
-        if self.include_data_dir_input.text():
-            data_dirs = [dd.strip() for dd in self.include_data_dir_input.text().split(',') if dd.strip()]
-
-            # Get project base path from main file location
-            if not self.main_file:
-                QMessageBox.warning(self, "Warning", "Please select main file first")
-                return
-
-            project_base_dir = os.path.dirname(self.main_file)
-
-            for dd in data_dirs:
-                # Split source and destination paths
-                if '=' in dd:
-                    src_path, dest_path = dd.split('=', 1)
-                else:
-                    src_path = dd
-                    # Default destination is last part of source path
-                    dest_path = os.path.basename(src_path)
-
-                # Ensure source path is absolute
-                if not os.path.isabs(src_path):
-                    # Resolve relative path based on main file directory
-                    resolved_path = os.path.join(project_base_dir, src_path)
-
-                    # Verify path exists
-                    if os.path.exists(resolved_path):
-                        src_path = resolved_path
-                    else:
-                        logging.warning(f"Resource path does not exist: {resolved_path}")
-                        continue
-
-                # Verify path exists
-                if not os.path.exists(src_path):
-                    logging.warning(f"Include data directory not found: {src_path}")
-                    continue
-
-                # Add to command
-                command.append(f"--include-data-dir={src_path}={dest_path}")
-                logging.info(f"Added include directory: {src_path} -> {dest_path}")
-
-                # Detailed logging
-                logging.debug(f"Original input: {dd}")
-                logging.debug(f"Resolved source: {src_path}")
-                logging.debug(f"Resolved destination: {dest_path}")
-
         # Exclude data files
         if self.noinclude_data_input.text():
-            exclude_data = [ed.strip() for ed in self.noinclude_data_input.text().split(',') if ed.strip()]
+            exclude_data = [
+                ed.strip()
+                for ed in self.noinclude_data_input.text().split(",")
+                if ed.strip()
+            ]
             for ed in exclude_data:
                 command.append(f"--noinclude-data-files={ed}")
 
-        # Onefile external data (only when onefile mode is enabled)
+        # Onefile external data (only add if onefile mode is enabled)
         if self.onefile_check.isChecked() and self.include_onefile_ext_input.text():
-            onefile_ext = [oe.strip() for oe in self.include_onefile_ext_input.text().split(',') if oe.strip()]
+            onefile_ext = [
+                oe.strip()
+                for oe in self.include_onefile_ext_input.text().split(",")
+                if oe.strip()
+            ]
             for oe in onefile_ext:
                 command.append(f"--include-onefile-external-data={oe}")
 
         # Include raw directories
         if self.include_raw_dir_input.text():
-            raw_dirs = [rd.strip() for rd in self.include_raw_dir_input.text().split(',') if rd.strip()]
+            raw_dirs = [
+                rd.strip()
+                for rd in self.include_raw_dir_input.text().split(",")
+                if rd.strip()
+            ]
             for rd in raw_dirs:
                 command.append(f"--include-raw-dir={rd}")
 
         # ===== Python Flags =====
         for i in range(self.flags_list.count()):
             command.append(self.flags_list.item(i).text())
-
-        # ===== Onefile Options =====
-        if self.onefile_check.isChecked():
-            if self.onefile_tempdir_input.text():
-                command.append(f"--onefile-tempdir-spec={self.onefile_tempdir_input.text()}")
-
-            if self.onefile_grace_time_spin.value() != 5000:
-                command.append(f"--onefile-child-grace-time={self.onefile_grace_time_spin.value()}")
-
-            if self.onefile_no_compression_check.isChecked():
-                command.append("--onefile-no-compression")
-
-            if self.onefile_as_archive_check.isChecked():
-                command.append("--onefile-as-archive")
-
-        # ===== DLL Control =====
-        if self.noinclude_dlls_input.text():
-            command.append(f"--noinclude-dlls={self.noinclude_dlls_input.text()}")
 
         # ===== Metadata =====
         if self.company_input.text():
@@ -1645,7 +1755,9 @@ class NuitkaPackager(QMainWindow):
 
         # ===== Environment Control =====
         if self.force_env_input.text():
-            command.append(f"--force-runtime-environment-variable={self.force_env_input.text()}")
+            command.append(
+                f"--force-runtime-environment-variable={self.force_env_input.text()}"
+            )
 
         # ===== Debug Options =====
         if self.debug_check.isChecked():
@@ -1674,22 +1786,28 @@ class NuitkaPackager(QMainWindow):
 
     def execute_package(self):
         """Execute packaging command"""
-        # Check if packaging thread is already running
+        # Check if there's a running packaging thread
         if self.package_thread and self.package_thread.isRunning():
-            self.log_message("⚠️ Packaging already in progress")
+            self.log_message("⚠️ Packaging task is already in progress")
             return
 
         # Validate required inputs
         if not self.python_path:
-            QMessageBox.warning(self, "Missing Configuration", "Select Python interpreter")
+            QMessageBox.warning(
+                self, "Missing Configuration", "Please select Python interpreter"
+            )
             return
 
         if not self.main_file:
-            QMessageBox.warning(self, "Missing Configuration", "Select main file")
+            QMessageBox.warning(
+                self, "Missing Configuration", "Please select main file"
+            )
             return
 
         if not self.output_dir:
-            QMessageBox.warning(self, "Missing Configuration", "Select output directory")
+            QMessageBox.warning(
+                self, "Missing Configuration", "Please select output directory"
+            )
             return
 
         # Check if Nuitka is installed
@@ -1697,8 +1815,8 @@ class NuitkaPackager(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Nuitka Not Installed",
-                "Nuitka not detected in selected Python environment.\nInstall with: pip install nuitka",
-                QMessageBox.Ok
+                "Nuitka not detected in the selected Python environment.\nPlease install it using: pip install nuitka",
+                QMessageBox.Ok,
             )
             return
 
@@ -1719,19 +1837,21 @@ class NuitkaPackager(QMainWindow):
         self.package_thread.start()
         self.log_message("▶ Starting packaging process...")
 
-        # Simulate progress updates
+        # Simulate progress updates (actual progress needs to be parsed from output)
         self.progress_timer = self.startTimer(1000)
 
-        # Auto-switch to log tab
+        # Automatically switch to log tab - fixed version
+        # Get main tab widget
         main_tab = self.findChild(QTabWidget)
         if main_tab:
+            # Find index of "Operation Log" tab
             for i in range(main_tab.count()):
                 if main_tab.tabText(i) == "Operation Log":
                     main_tab.setCurrentIndex(i)
                     break
 
     def timerEvent(self, event):
-        """Timer event for progress bar updates"""
+        """Timer event for updating progress bar"""
         if self.progress_bar.value() < 90:
             self.progress_bar.setValue(self.progress_bar.value() + 5)
 
@@ -1739,25 +1859,25 @@ class NuitkaPackager(QMainWindow):
         """Stop packaging process"""
         if self.package_thread and self.package_thread.isRunning():
             self.package_thread.stop()
-            self.log_message("🛑 User requested packaging stop...")
+            self.log_message("🛑 User requested to stop packaging...")
             self.stop_btn.setEnabled(False)
 
-            # Attempt normal thread termination
+            # Try to wait for thread to end normally
             if not self.package_thread.wait(2000):  # Wait 2 seconds
-                # Force terminate if still running
+                # If thread is still running, force terminate
                 self.package_thread.terminate()
-                self.log_message("⚠️ Forced packaging thread termination")
+                self.log_message("⚠️ Forced termination of packaging thread")
 
-            # Reset button state immediately
+            # Immediately reset button states
             self.execute_btn.setEnabled(True)
             self.progress_bar.setValue(0)
 
             # Stop progress updates
-            if hasattr(self, 'progress_timer'):
+            if hasattr(self, "progress_timer"):
                 self.killTimer(self.progress_timer)
 
     def package_finished(self, success):
-        """Handle packaging completion"""
+        """Process after packaging is completed"""
         # Always update UI state
         self.execute_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
@@ -1766,26 +1886,28 @@ class NuitkaPackager(QMainWindow):
         self.progress_bar.setValue(100 if success else 0)
 
         # Stop progress updates
-        if hasattr(self, 'progress_timer'):
+        if hasattr(self, "progress_timer"):
             self.killTimer(self.progress_timer)
 
         if success:
             self.log_message("✅ Packaging completed successfully!")
             self.log_message(f"Output directory: {self.output_dir}")
 
-            # Ask to open output directory
-            msg_box = QMessageBox(QMessageBox.Question,  # Explicitly set icon
-                                  "Packaging Success",
-                                  "Packaging completed! Open output directory?",
-                                  QMessageBox.Yes | QMessageBox.No,
-                                  self)  # Pass 'self' as parent
+            # Ask if user wants to open output directory
+            msg_box = QMessageBox(
+                QMessageBox.Question,  # Explicitly set icon
+                "Packaging Success",
+                "Packaging is complete! Do you want to open the output directory?",
+                QMessageBox.Yes | QMessageBox.No,
+                self,
+            )  # Pass 'self' as parent
             # Apply theme-specific stylesheet
             msg_box.setStyleSheet(self.get_messagebox_style())
             reply = msg_box.exec()  # Use exec() instead of static method
             if reply == QMessageBox.Yes:
                 os.startfile(self.output_dir)
         else:
-            self.log_message("❌ Errors occurred during packaging, check log")
+            self.log_message("❌ Error occurred during packaging, please check the log")
 
     def clear_log(self):
         """Clear log"""
@@ -1796,17 +1918,17 @@ class NuitkaPackager(QMainWindow):
     def closeEvent(self, event):
         """Handle window close event"""
         if self.package_thread and self.package_thread.isRunning():
-            # 使用实例化的方式创建 QMessageBox 以便应用样式
+            # Create QMessageBox instance to apply styles
             msg_box = QMessageBox(
-                QMessageBox.Question,  # 设置图标
-                "Packaging In Progress",
-                "Packaging is still running. Exit anyway?",
+                QMessageBox.Question,  # Set icon
+                "Packaging in Progress",
+                "Packaging process is still running, are you sure you want to exit?",
                 QMessageBox.Yes | QMessageBox.No,
-                self  # 设置父窗口
+                self,  # Set parent window
             )
-            # 应用与当前主题匹配的样式
+            # Apply style matching current theme
             msg_box.setStyleSheet(self.get_messagebox_style())
-            reply = msg_box.exec()  # 使用 exec() 显示对话框
+            reply = msg_box.exec()  # Use exec() to display dialog
 
             if reply == QMessageBox.Yes:
                 self.package_thread.stop()
